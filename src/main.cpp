@@ -3,7 +3,6 @@
 #include <ArduinoJson.h>
 #include <IRremoteESP8266.h>
 #include <ir_Daikin.h>
-#include <CommonConfig.h>
 #include <MqttClient.h>
 #include <FotaClient.h>
 #include <ESPWifiClient.h>
@@ -12,10 +11,12 @@
 
 IRDaikinESP daikinAC(PIN_IR_SEND);
 MqttClient *mqttClient    = NULL;
+String mqttTopics[2]      = { String(MQTT_TOPIC_SET), String(MQTT_TOPIC_LOCK_GET) };
 FotaClient *fotaClient    = new FotaClient(DEVICE_NAME);
 ESPWifiClient *wifiClient = new ESPWifiClient(WIFI_SSID, WIFI_PASS);
 
-long lastStatusMsgSentAt = 0;
+long lastStatusMsgSentAt  = 0;
+bool lastApartmentIsArmed = false;
 
 bool isACPowerOn() {
   int acPowerStatusValue = analogRead(PIN_POWER_ACTUAL);
@@ -131,8 +132,8 @@ void acPublishStatus(const char *messageId     = NULL,
   }
 }
 
-void acIRSend(String payload) {
-  PRINTLN("AC: Sending IR signal.");
+void acSetStatus(String payload) {
+  PRINTLN("AC: Setting New Status.");
 
   // parse the JSON
   const size_t bufferSize = JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(8) + 130;
@@ -287,21 +288,90 @@ void acIRSend(String payload) {
   acPublishStatus(messageId, true, powerOnBool);
 }
 
+void acSetAutomaticProfile(String payload) {
+  PRINTLN("AC: Setting automatic profile.");
+
+  if (!isACPowerOn()) {
+    PRINTLN("AC: The Air Conditioner is OFF, skipping the automated status change.");
+    return;
+  }
+
+  // parse the JSON
+  const size_t bufferSize = JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(8) + 130;
+  DynamicJsonBuffer jsonBuffer(bufferSize);
+  JsonObject& root   = jsonBuffer.parseObject(payload);
+  JsonObject& status = root.get<JsonObject&>("status");
+
+  if (!status.success()) {
+    PRINTLN_E("AC: JSON with \"status\" key not received.");
+    PRINTLN_E(payload);
+    return;
+  }
+
+  JsonArray& areasStatus = status["areasStatus"];
+
+  if (!areasStatus.success()) {
+    PRINTLN_E("AC: JSON with \"areasStatus\" key not received.");
+    PRINTLN_E(payload);
+    return;
+  }
+
+  for (int idx = 0; idx < areasStatus.size(); ++idx) {
+    JsonObject& area = areasStatus[idx];
+
+    if (strcmp(area["name"], AUTOMATED_STATE_AREA_NAME) != 0) {
+      // Not matched
+      continue;
+    }
+    bool apartmentIsArmed = area["isArmed"];
+
+    if (lastApartmentIsArmed == apartmentIsArmed) {
+      // Apartment state not changed
+      PRINTLN("AC: Apartment status is not changed. No need to set automated state.");
+      return;
+    }
+    lastApartmentIsArmed = apartmentIsArmed;
+
+    if (apartmentIsArmed == true) {
+      PRINTLN("AC: Set profile to ARMED.");
+      daikinAC.setTemp(AUTOMATED_STATE_TEMP_ARMED);
+      daikinAC.send();
+      lastStatusMsgSentAt = 0;
+      return;
+    } else {
+      if (daikinAC.getTemp() != AUTOMATED_STATE_TEMP_ARMED) {
+        PRINTLN("AC: No need to set automatic status, as the temperature was already changed.");
+        return;
+      }
+
+      PRINTLN("AC: Set profile to DISARMED.");
+      daikinAC.setTemp(AUTOMATED_STATE_TEMP_DISARMED);
+      daikinAC.send();
+      lastStatusMsgSentAt = 0;
+      return;
+    }
+  }
+}
+
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
-  PRINT("MQTT Message arrived [");
+  PRINT("MQTT Message arrived in '");
   PRINT(topic);
-  PRINTLN("] ");
+  PRINTLN("' topic.");
 
   String payloadString = String((char *)payload);
 
   // Do something according the topic
   if (strcmp(topic, MQTT_TOPIC_SET) == 0) {
-    acIRSend(payloadString);
+    acSetStatus(payloadString);
+    return;
   }
-  else {
-    PRINT("MQTT: Warning: Unknown topic: ");
-    PRINTLN(topic);
+
+  if (strcmp(topic, MQTT_TOPIC_LOCK_GET) == 0) {
+    acSetAutomaticProfile(payloadString);
+    return;
   }
+  PRINT("MQTT: Warning: Unknown topic: ");
+  PRINTLN(topic);
 }
 
 void setup() {
@@ -311,7 +381,8 @@ void setup() {
                               DEVICE_NAME,
                               MQTT_USERNAME,
                               MQTT_PASS,
-                              MQTT_TOPIC_SET,
+                              mqttTopics,
+                              2,
                               MQTT_SERVER_FINGERPRINT,
                               mqttCallback);
   fotaClient->init();
