@@ -21,9 +21,15 @@ bool lastApartmentIsArmed = false;
 bool isACPowerOn() {
   int acPowerStatusValue = analogRead(PIN_POWER_ACTUAL);
 
-  if (acPowerStatusValue >= 700) {
+  PRINT_D("AC: Power On value is ");
+  PRINT_D(acPowerStatusValue);
+  PRINT_D(". AC is ");
+
+  if (acPowerStatusValue >= POWER_ON_VALUE) {
+    PRINTLN_D("ON.");
     return true;
   }
+  PRINTLN_D("OFF.");
   return false;
 }
 
@@ -331,25 +337,80 @@ void acSetAutomaticProfile(String payload) {
       return;
     }
     lastApartmentIsArmed = apartmentIsArmed;
+    byte deservedTemp = 0;
+    byte deservedMode = DAIKIN_AUTO;
 
     if (apartmentIsArmed == true) {
-      PRINTLN("AC: Set profile to ARMED.");
-      daikinAC.setTemp(AUTOMATED_STATE_TEMP_ARMED);
-      daikinAC.send();
-      lastStatusMsgSentAt = 0;
-      return;
+      // ARMED profile
+      PRINT("AC AUTO: Set 'ARMED' profile.");
+
+      if (daikinAC.getMode() == DAIKIN_HEAT) {
+        if (AUTOMATED_STATE_HEAT_ARMED_POWERON == false)
+        {
+          PRINT(" Turning off.");
+          daikinAC.off();
+        }
+        else {
+          daikinAC.on();
+          deservedTemp = AUTOMATED_STATE_HEAT_ARMED_TEMP;
+          deservedMode = AUTOMATED_STATE_HEAT_ARMED_MODE;
+        }
+      } else if (daikinAC.getMode() == DAIKIN_COOL) {
+        if (AUTOMATED_STATE_COOL_ARMED_POWERON == false) {
+          PRINT(" Turning off.");
+          daikinAC.off();
+        }
+        else {
+          daikinAC.on();
+          deservedTemp = AUTOMATED_STATE_COOL_ARMED_TEMP;
+          deservedMode = AUTOMATED_STATE_COOL_ARMED_MODE;
+        }
+      }
     } else {
-      if (daikinAC.getTemp() != AUTOMATED_STATE_TEMP_ARMED) {
-        PRINTLN("AC: No need to set automatic status, as the temperature was already changed.");
+      // DISARMED profile
+      if (((daikinAC.getMode() == DAIKIN_HEAT) && ((daikinAC.getMode() != AUTOMATED_STATE_HEAT_ARMED_MODE) ||
+                                                   (daikinAC.getTemp() != AUTOMATED_STATE_HEAT_ARMED_TEMP)))
+          ||
+          ((daikinAC.getMode() == DAIKIN_COOL) && ((daikinAC.getMode() != AUTOMATED_STATE_COOL_ARMED_MODE) ||
+                                                   (daikinAC.getTemp() != AUTOMATED_STATE_COOL_ARMED_TEMP))))
+      {
+        PRINTLN("AC: No need to set automatic status, as the mode or temperature was already changed.");
         return;
       }
+      PRINT("AC AUTO: Set 'DISARMED' profile.");
 
-      PRINTLN("AC: Set profile to DISARMED.");
-      daikinAC.setTemp(AUTOMATED_STATE_TEMP_DISARMED);
-      daikinAC.send();
-      lastStatusMsgSentAt = 0;
-      return;
+      if (daikinAC.getMode() == DAIKIN_HEAT) {
+        if (AUTOMATED_STATE_HEAT_DISARMED_POWERON == false)
+        {
+          PRINT(" Turning off.");
+          daikinAC.off();
+        }
+        else {
+          daikinAC.on();
+          deservedTemp = AUTOMATED_STATE_HEAT_DISARMED_TEMP;
+          deservedMode = AUTOMATED_STATE_HEAT_DISARMED_MODE;
+        }
+      } else if (daikinAC.getMode() == DAIKIN_COOL) {
+        if (AUTOMATED_STATE_COOL_DISARMED_POWERON == false)
+        {
+          PRINT(" Turning off.");
+          daikinAC.off();
+        }
+        else {
+          daikinAC.on();
+          deservedTemp = AUTOMATED_STATE_COOL_DISARMED_TEMP;
+          deservedMode = AUTOMATED_STATE_COOL_DISARMED_MODE;
+        }
+      }
     }
+    PRINT(" Temperature: ");
+    PRINT(deservedTemp);
+    PRINT(" Mode: ");
+    PRINTLN(deservedMode);
+    daikinAC.setTemp(deservedTemp);
+    daikinAC.setMode(deservedMode);
+    daikinAC.send();
+    lastStatusMsgSentAt = 0;
   }
 }
 
