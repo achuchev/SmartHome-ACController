@@ -164,28 +164,38 @@ void acSetStatus(String payload) {
   const char *modeValue = status.get<const char *>("mode");
 
   if (modeValue) {
-    needToSendIR = true;
-    PRINT("AC: Mode set to: ");
+    uint8_t modeNew;
+    String  modeNewStr;
 
     if (strcasecmp(modeValue, "auto") == 0) {
-      daikinAC.setMode(DAIKIN_AUTO);
-      PRINTLN("AUTO");
+      modeNew    = DAIKIN_AUTO;
+      modeNewStr = "AUTO";
     } else if (strcasecmp(modeValue, "cool") == 0) {
-      daikinAC.setMode(DAIKIN_COOL);
-      PRINTLN("COOL");
+      modeNew    = DAIKIN_COOL;
+      modeNewStr = "COOL";
     } else if (strcasecmp(modeValue, "heat") == 0) {
-      daikinAC.setMode(DAIKIN_HEAT);
-      PRINTLN("HEAT");
+      modeNew    = DAIKIN_HEAT;
+      modeNewStr = "HEAT";
     } else if (strcasecmp(modeValue, "fan") == 0) {
-      daikinAC.setMode(DAIKIN_FAN);
-      PRINTLN("FAN");
+      modeNew    = DAIKIN_FAN;
+      modeNewStr = "FAN";
     } else if (strcasecmp(modeValue, "dry") == 0) {
-      daikinAC.setMode(DAIKIN_DRY);
-      PRINTLN("DRY");
+      modeNew    = DAIKIN_DRY;
+      modeNewStr = "DRY";
     } else {
-      PRINT("Invalid value (");
-      PRINT(modeValue);
-      PRINTLN(")");
+      modeNewStr  = "Invalid value (";
+      modeNewStr += modeValue;
+      modeNewStr += ")";
+    }
+
+    if (daikinAC.getMode() == modeNew) {
+      PRINT("AC: Mode is already set to ");
+      PRINTLN(modeValue);
+    } else {
+      needToSendIR = true;
+      PRINT("AC: Mode set to: ");
+      PRINTLN(modeNewStr);
+      daikinAC.setMode(DAIKIN_COOL);
     }
   }
 
@@ -201,19 +211,24 @@ void acSetStatus(String payload) {
   uint8_t tempValue = status.get<int>("temp");
 
   if (tempValue) {
-    needToSendIR = true;
-    PRINT("AC: Temp set to: ");
+    if (daikinAC.getTemp() == tempValue) {
+      PRINT("AC: Temp is already set to ");
+      PRINTLN(tempValue);
+    } else {
+      needToSendIR = true;
+      PRINT("AC: Temp set to: ");
 
-    if (tempValue < DAIKIN_MIN_TEMP) {
-      tempValue = DAIKIN_MIN_TEMP;
-      PRINT("(MIN TEMP) ");
+      if (tempValue < DAIKIN_MIN_TEMP) {
+        tempValue = DAIKIN_MIN_TEMP;
+        PRINT("(MIN TEMP) ");
+      }
+      else if (tempValue > DAIKIN_MAX_TEMP) {
+        tempValue = DAIKIN_MAX_TEMP;
+        PRINT("(MAX TEMP) ");
+      }
+      daikinAC.setTemp(tempValue);
+      PRINTLN(tempValue);
     }
-    else if (tempValue > DAIKIN_MAX_TEMP) {
-      tempValue = DAIKIN_MAX_TEMP;
-      PRINT("(MAX TEMP) ");
-    }
-    daikinAC.setTemp(tempValue);
-    PRINTLN(tempValue);
   }
 
   const char *fanValue = status.get<const char *>("fan");
