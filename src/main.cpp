@@ -71,27 +71,27 @@ void acPublishStatus(const char *messageId     = NULL,
     status["temp"] = daikinAC.getTemp();
 
     switch (daikinAC.getMode()) {
-      case DAIKIN_AUTO: {
+      case kDaikinAuto: {
         status["mode"] = "auto";
         break;
       }
 
-      case DAIKIN_COOL: {
+      case kDaikinCool: {
         status["mode"] = "cool";
         break;
       }
 
-      case DAIKIN_HEAT: {
+      case kDaikinHeat: {
         status["mode"] = "heat";
         break;
       }
 
-      case DAIKIN_FAN: {
+      case kDaikinFan: {
         status["mode"] = "fan";
         break;
       }
 
-      case DAIKIN_DRY: {
+      case kDaikinDry: {
         status["mode"] = "dry";
         break;
       }
@@ -103,17 +103,17 @@ void acPublishStatus(const char *messageId     = NULL,
     }
 
     switch (daikinAC.getFan()) {
-      case DAIKIN_FAN_AUTO: {
+      case kDaikinFanAuto: {
         status["fan"] = "auto";
         break;
       }
 
-      case DAIKIN_FAN_MIN: {
+      case kDaikinFanMin: {
         status["fan"] = "min";
         break;
       }
 
-      case DAIKIN_FAN_MAX: {
+      case kDaikinFanMax: {
         status["fan"] = "max";
         break;
       }
@@ -168,19 +168,19 @@ void acSetStatus(String payload) {
     String  modeNewStr;
 
     if (strcasecmp(modeValue, "auto") == 0) {
-      modeNew    = DAIKIN_AUTO;
+      modeNew    = kDaikinAuto;
       modeNewStr = "AUTO";
     } else if (strcasecmp(modeValue, "cool") == 0) {
-      modeNew    = DAIKIN_COOL;
+      modeNew    = kDaikinCool;
       modeNewStr = "COOL";
     } else if (strcasecmp(modeValue, "heat") == 0) {
-      modeNew    = DAIKIN_HEAT;
+      modeNew    = kDaikinHeat;
       modeNewStr = "HEAT";
     } else if (strcasecmp(modeValue, "fan") == 0) {
-      modeNew    = DAIKIN_FAN;
+      modeNew    = kDaikinFan;
       modeNewStr = "FAN";
     } else if (strcasecmp(modeValue, "dry") == 0) {
-      modeNew    = DAIKIN_DRY;
+      modeNew    = kDaikinDry;
       modeNewStr = "DRY";
     } else {
       modeNewStr  = "Invalid value (";
@@ -188,14 +188,14 @@ void acSetStatus(String payload) {
       modeNewStr += ")";
     }
 
-    if (daikinAC.getMode() == modeNew) {
-      PRINT("AC: Mode is already set to ");
-      PRINTLN(modeValue);
-    } else {
+    if (daikinAC.getMode() != modeNew) {
       needToSendIR = true;
       PRINT("AC: Mode set to: ");
       PRINTLN(modeNewStr);
-      daikinAC.setMode(DAIKIN_COOL);
+      daikinAC.setMode(modeNew);
+    } else {
+      PRINT("AC: Mode is already set to ");
+      PRINTLN(modeValue);
     }
   }
 
@@ -218,12 +218,12 @@ void acSetStatus(String payload) {
       needToSendIR = true;
       PRINT("AC: Temp set to: ");
 
-      if (tempValue < DAIKIN_MIN_TEMP) {
-        tempValue = DAIKIN_MIN_TEMP;
+      if (tempValue < kDaikinMinTemp) {
+        tempValue = kDaikinMinTemp;
         PRINT("(MIN TEMP) ");
       }
-      else if (tempValue > DAIKIN_MAX_TEMP) {
-        tempValue = DAIKIN_MAX_TEMP;
+      else if (tempValue > kDaikinMaxTemp) {
+        tempValue = kDaikinMaxTemp;
         PRINT("(MAX TEMP) ");
       }
       daikinAC.setTemp(tempValue);
@@ -239,18 +239,18 @@ void acSetStatus(String payload) {
     int fanValueInt;
 
     if (strcasecmp(fanValue, "auto") == 0) {
-      fanValueInt = DAIKIN_FAN_AUTO;
+      fanValueInt = kDaikinFanAuto;
       PRINTLN("AUTO");
     } else if (strcasecmp(fanValue, "max") == 0) {
-      fanValueInt = DAIKIN_FAN_MAX;
+      fanValueInt = kDaikinFanMax;
       PRINTLN("MAX");
     } else if (strcasecmp(fanValue, "min") == 0) {
-      fanValueInt = DAIKIN_FAN_MIN;
+      fanValueInt = kDaikinFanMin;
       PRINTLN("MIN");
     } else {
       fanValueInt = atoi(fanValue);
 
-      if ((fanValueInt < DAIKIN_FAN_MIN) or (fanValueInt > DAIKIN_FAN_MAX)) {
+      if ((fanValueInt < kDaikinFanMin) or (fanValueInt > kDaikinFanMax)) {
         fanValue = 0;
         PRINT("Invalid value (");
         PRINT(fanValue);
@@ -353,13 +353,13 @@ void acSetAutomaticProfile(String payload) {
     }
     lastApartmentIsArmed = apartmentIsArmed;
     byte deservedTemp = 0;
-    byte deservedMode = DAIKIN_AUTO;
+    byte deservedMode = kDaikinAuto;
 
     if (apartmentIsArmed == true) {
       // ARMED profile
       PRINT("AC AUTO: Set 'ARMED' profile.");
 
-      if (daikinAC.getMode() == DAIKIN_HEAT) {
+      if (daikinAC.getMode() == kDaikinHeat) {
         if (AUTOMATED_STATE_HEAT_ARMED_POWERON == false)
         {
           PRINT(" Turning off.");
@@ -370,7 +370,7 @@ void acSetAutomaticProfile(String payload) {
           deservedTemp = AUTOMATED_STATE_HEAT_ARMED_TEMP;
           deservedMode = AUTOMATED_STATE_HEAT_ARMED_MODE;
         }
-      } else if (daikinAC.getMode() == DAIKIN_COOL) {
+      } else if (daikinAC.getMode() == kDaikinCool) {
         if (AUTOMATED_STATE_COOL_ARMED_POWERON == false) {
           PRINT(" Turning off.");
           daikinAC.off();
@@ -383,10 +383,10 @@ void acSetAutomaticProfile(String payload) {
       }
     } else {
       // DISARMED profile
-      if (((daikinAC.getMode() == DAIKIN_HEAT) && ((daikinAC.getMode() != AUTOMATED_STATE_HEAT_ARMED_MODE) ||
+      if (((daikinAC.getMode() == kDaikinHeat) && ((daikinAC.getMode() != AUTOMATED_STATE_HEAT_ARMED_MODE) ||
                                                    (daikinAC.getTemp() != AUTOMATED_STATE_HEAT_ARMED_TEMP)))
           ||
-          ((daikinAC.getMode() == DAIKIN_COOL) && ((daikinAC.getMode() != AUTOMATED_STATE_COOL_ARMED_MODE) ||
+          ((daikinAC.getMode() == kDaikinCool) && ((daikinAC.getMode() != AUTOMATED_STATE_COOL_ARMED_MODE) ||
                                                    (daikinAC.getTemp() != AUTOMATED_STATE_COOL_ARMED_TEMP))))
       {
         PRINTLN("AC: No need to set automatic status, as the mode or temperature was already changed.");
@@ -394,7 +394,7 @@ void acSetAutomaticProfile(String payload) {
       }
       PRINT("AC AUTO: Set 'DISARMED' profile.");
 
-      if (daikinAC.getMode() == DAIKIN_HEAT) {
+      if (daikinAC.getMode() == kDaikinHeat) {
         if (AUTOMATED_STATE_HEAT_DISARMED_POWERON == false)
         {
           PRINT(" Turning off.");
@@ -405,7 +405,7 @@ void acSetAutomaticProfile(String payload) {
           deservedTemp = AUTOMATED_STATE_HEAT_DISARMED_TEMP;
           deservedMode = AUTOMATED_STATE_HEAT_DISARMED_MODE;
         }
-      } else if (daikinAC.getMode() == DAIKIN_COOL) {
+      } else if (daikinAC.getMode() == kDaikinCool) {
         if (AUTOMATED_STATE_COOL_DISARMED_POWERON == false)
         {
           PRINT(" Turning off.");
@@ -439,6 +439,8 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   memcpy(spayload, payload, length);
   spayload[length] = '\0';
   String payloadString = String(spayload);
+  PRINT_D("MQTT: Message: ");
+  PRINTLN_D(payloadString);
 
   // Do something according the topic
   if (strcmp(topic, MQTT_TOPIC_SET) == 0) {
@@ -470,7 +472,7 @@ void setup() {
   // AC initial configuration
   daikinAC.begin();
   daikinAC.setTemp(15);
-  daikinAC.setFan(DAIKIN_FAN_AUTO);
+  daikinAC.setFan(kDaikinFanAuto);
 
   // Set the initial Power Status based on the actual status
   setACPowerStatus(isACPowerOn());
