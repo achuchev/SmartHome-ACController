@@ -164,7 +164,7 @@ void acSetStatus(String payload) {
   const char *modeValue = status.get<const char *>("mode");
 
   if (modeValue) {
-    uint8_t modeNew;
+    uint8_t modeNew = kDaikinAuto;
     String  modeNewStr;
 
     if (strcasecmp(modeValue, "auto") == 0) {
@@ -337,7 +337,7 @@ void acSetAutomaticProfile(String payload) {
     return;
   }
 
-  for (int idx = 0; idx < areasStatus.size(); ++idx) {
+  for (uint8_t idx = 0; idx < areasStatus.size(); ++idx) {
     JsonObject& area = areasStatus[idx];
 
     if (strcmp(area["name"], AUTOMATED_STATE_AREA_NAME) != 0) {
