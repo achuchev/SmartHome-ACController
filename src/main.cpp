@@ -310,6 +310,10 @@ void acSetStatus(String payload) {
 }
 
 void acSetAutomaticProfile(String payload) {
+  if (!AUTOMATED_PROFILE_ENABLED) {
+    PRINTLN("AC: Setting automatic profile is disabled.");
+    return;
+  }
   PRINTLN("AC: Setting automatic profile.");
 
   if (!isACPowerOn()) {
