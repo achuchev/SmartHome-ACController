@@ -57,9 +57,8 @@ void acPublishStatus(const char *messageId     = NULL,
     lastStatusMsgSentAt = now;
 
     const size_t bufferSize = JSON_ARRAY_SIZE(4) + 5 * JSON_OBJECT_SIZE(1);
-    DynamicJsonBuffer jsonBuffer(bufferSize);
-    JsonObject& root   = jsonBuffer.createObject();
-    JsonObject& status = root.createNestedObject("status");
+    DynamicJsonDocument root(bufferSize);
+    JsonObject status = root.createNestedObject("status");
 
     if (messageId != NULL) {
       root["messageId"] = messageId;
@@ -131,7 +130,7 @@ void acPublishStatus(const char *messageId     = NULL,
 
     // convert to String
     String outString;
-    root.printTo(outString);
+    serializeJson(root, outString);
 
     // publish the message
     mqttClient->publish(MQTT_TOPIC_GET, outString);
@@ -143,29 +142,39 @@ void acSetStatus(String payload) {
 
   // parse the JSON
   const size_t bufferSize = JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(8) + 130;
-  DynamicJsonBuffer jsonBuffer(bufferSize);
-  JsonObject& root   = jsonBuffer.parseObject(payload);
-  JsonObject& status = root.get<JsonObject&>("status");
+  DynamicJsonDocument  jsonDoc(bufferSize);
+  DeserializationError error = deserializeJson(jsonDoc, payload);
 
-  if (!status.success()) {
-    PRINTLN_E("AC: JSON with \"status\" key not received.");
-    PRINTLN_E(payload);
+  if (error) {
+    PRINT_E("Failed to deserialize the received payload. Error: ");
+    PRINTLN_E(error.c_str());
+    PRINTLN_E("The payload is: ");
+    PRINTLN_E(payload)
     return;
   }
-  bool needToSendIR   = false;
-  const char *powerOn = status.get<const char *>("powerOn");
-  bool powerOnBool    = isACPowerOn();
+  PRINTLN_D(payload);
 
-  if (powerOn) {
+  JsonObject root   = jsonDoc.as<JsonObject>();
+  JsonObject status = root["status"];
+
+  bool needToSendIR = false;
+  bool powerOnBool  = isACPowerOn();
+
+  JsonVariant powerOnJV = status["powerOn"];
+
+  if (!powerOnJV.isNull()) {
+    bool powerOn = powerOnJV.as<bool>();
+
     needToSendIR = true;
-    powerOnBool  = setACPowerStatus(strcasecmp(powerOn, "true") == 0);
+    powerOnBool  = setACPowerStatus(powerOn);
   }
 
-  const char *modeValue = status.get<const char *>("mode");
+  JsonVariant modeValueJV = status["mode"];
 
-  if (modeValue) {
+  if (modeValueJV) {
     uint8_t modeNew = kDaikinAuto;
     String  modeNewStr;
+    const char *modeValue = modeValueJV.as<const char *>();
 
     if (strcasecmp(modeValue, "auto") == 0) {
       modeNew    = kDaikinAuto;
@@ -199,18 +208,21 @@ void acSetStatus(String payload) {
     }
   }
 
-  int tempDeltaValue = status.get<int>("tempDelta");
+  JsonVariant tempDeltaValueJV = status["tempDelta"];
 
-  if (tempDeltaValue) {
+  if (tempDeltaValueJV) {
+    int tempDeltaValue = tempDeltaValueJV.as<int>();
     needToSendIR = true;
     PRINT("AC: Temp Delta is: ");
     PRINTLN(tempDeltaValue);
     daikinAC.setTemp(daikinAC.getTemp() + tempDeltaValue);
   }
 
-  uint8_t tempValue = status.get<int>("temp");
+  JsonVariant tempValueJV = status["temp"];
 
-  if (tempValue) {
+  if (tempValueJV) {
+    int tempValue = tempValueJV.as<int>();
+
     if (daikinAC.getTemp() == tempValue) {
       PRINT("AC: Temp is already set to ");
       PRINTLN(tempValue);
@@ -230,11 +242,12 @@ void acSetStatus(String payload) {
       PRINTLN(tempValue);
     }
   }
+  JsonVariant fanValueJV = status["fan"];
 
-  const char *fanValue = status.get<const char *>("fan");
-
-  if (fanValue) {
+  if (fanValueJV) {
+    const char *fanValue = fanValueJV.as<const char *>();
     needToSendIR = true;
+
     PRINT("AC: Fan set to: ");
     int fanValueInt;
 
@@ -265,47 +278,57 @@ void acSetStatus(String payload) {
     }
   }
 
-  bool swingVerticalValue = status.get<bool>("swingVertical");
+  JsonVariant swingVerticalValueJV = status["swingVertical"];
 
-  if (swingVerticalValue) {
+  if (swingVerticalValueJV) {
+    bool swingVerticalValue = swingVerticalValueJV.as<bool>();
     needToSendIR = true;
+
     PRINT("AC: Swing Vertical set to: ");
     daikinAC.setSwingVertical(swingVerticalValue);
     PRINTLN(swingVerticalValue);
   }
 
-  bool swingHorizontalValue = status.get<bool>("swingHorizontal");
+  JsonVariant swingHorizontalValueJV = status["swingHorizontal"];
 
-  if (swingHorizontalValue) {
+  if (swingHorizontalValueJV) {
+    bool swingHorizontalValue = swingHorizontalValueJV.as<bool>();
     needToSendIR = true;
+
     PRINT("AC: Swing Horizontal set to: ");
     daikinAC.setSwingHorizontal(swingHorizontalValue);
     PRINTLN(swingHorizontalValue);
   }
 
-  const char *quietValue = status.get<const char *>("quiet");
+  JsonVariant quietValueJV = status["quiet"];
 
-  if (quietValue) {
+  if (quietValueJV) {
+    bool quietValue = quietValueJV.as<bool>();
     needToSendIR = true;
+
     PRINT("AC: Quiet set to: ");
     PRINTLN(quietValue);
-    daikinAC.setQuiet(strcasecmp(quietValue, "true") == 0);
+    daikinAC.setQuiet(quietValue);
   }
 
-  const char *powerfulValue = status.get<const char *>("powerful");
+  JsonVariant powerfulValueJV = status["powerful"];
 
-  if (powerfulValue) {
+  if (powerfulValueJV) {
+    bool powerfulValue = powerfulValueJV.as<bool>();
     needToSendIR = true;
+
     PRINT("AC: Powerful set to: ");
     PRINTLN(powerfulValue);
-    daikinAC.setPowerful(strcasecmp(powerfulValue, "true") == 0);
+    daikinAC.setPowerful(powerfulValue);
   }
 
   if (needToSendIR == true) {
     // Now send the IR signal.
     daikinAC.send();
   }
-  const char *messageId = root.get<const char *>("messageId");
+  JsonVariant messageIdJV = root["messageId"];
+  const char *messageId   = messageIdJV.as<const char *>();
+
   acPublishStatus(messageId, true, powerOnBool);
 }
 
@@ -323,32 +346,50 @@ void acSetAutomaticProfile(String payload) {
 
   // parse the JSON
   const size_t bufferSize = JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(8) + 130;
-  DynamicJsonBuffer jsonBuffer(bufferSize);
-  JsonObject& root   = jsonBuffer.parseObject(payload);
-  JsonObject& status = root.get<JsonObject&>("status");
+  DynamicJsonDocument  jsonDoc(bufferSize);
+  DeserializationError error = deserializeJson(jsonDoc, payload);
 
-  if (!status.success()) {
-    PRINTLN_E("AC: JSON with \"status\" key not received.");
-    PRINTLN_E(payload);
+  if (error) {
+    PRINT_E("Failed to deserialize the received payload. Error: ");
+    PRINTLN_E(error.c_str());
+    PRINTLN_E("The payload is: ");
+    PRINTLN_E(payload)
     return;
   }
+  JsonObject  root          = jsonDoc.as<JsonObject>();
+  JsonObject  status        = root["status"];
+  JsonVariant areasStatusJV = status["areasStatus"];
 
-  JsonArray& areasStatus = status["areasStatus"];
-
-  if (!areasStatus.success()) {
+  if (!areasStatusJV) {
     PRINTLN_E("AC: JSON with \"areasStatus\" key not received.");
     PRINTLN_E(payload);
     return;
   }
+  JsonArray areasStatus = areasStatusJV.as<JsonArray>();
 
   for (uint8_t idx = 0; idx < areasStatus.size(); ++idx) {
-    JsonObject& area = areasStatus[idx];
+    JsonVariant areaJV = areasStatus[idx];
+
+    if (!areaJV) {
+      PRINTLN_E("AC: JSON with \"area\" key not received.");
+      PRINTLN_E(payload);
+      return;
+    }
+    JsonObject area = areaJV.as<JsonObject>();
 
     if (strcmp(area["name"], AUTOMATED_STATE_AREA_NAME) != 0) {
       // Not matched
       continue;
     }
-    bool apartmentIsArmed = area["isArmed"];
+
+    JsonVariant apartmentIsArmedJV = area["isArmed"];
+
+    if (!apartmentIsArmedJV) {
+      PRINTLN_E("AC: JSON with \"isArmed\" key not received.");
+      PRINTLN_E(payload);
+      return;
+    }
+    bool apartmentIsArmed = apartmentIsArmedJV.as<bool>();
 
     if (lastApartmentIsArmed == apartmentIsArmed) {
       // Apartment state not changed
