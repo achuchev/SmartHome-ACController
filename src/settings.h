@@ -25,7 +25,7 @@
 #define AUTOMATED_STATE_COOL_DISARMED_MODE DAIKIN_COOL
 #define AUTOMATED_STATE_COOL_DISARMED_TEMP (byte)00
 
-#define POWER_ON_VALUE 700  // Above the value of the photoresistor the AC is ON
+#define POWER_ON_VALUE 650  // Above the value of the photoresistor the AC is ON
 
 #define PIN_POWER_ACTUAL A0 // Photoresistor PIN
 #define PIN_IR_SEND D2      // IR LED PIN

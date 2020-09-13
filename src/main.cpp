@@ -23,6 +23,8 @@ bool isACPowerOn() {
 
   PRINT_D("AC: Power On value is ");
   PRINT_D(acPowerStatusValue);
+  PRINT_D(". The limit is ");
+  PRINT_D(POWER_ON_VALUE);
   PRINT_D(". AC is ");
 
   if (acPowerStatusValue >= POWER_ON_VALUE) {
